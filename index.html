@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
 <html lang="it"><head><meta charset="utf-8">
-<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1d4ed8"><link rel="apple-touch-icon" href="icon-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ferie reparto</title>
 <style>
@@ -50,8 +49,6 @@ main{padding:12px 12px 40px}
 .sh{background:var(--sf);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));max-height:85vh;overflow:auto}
 .sh h2{text-transform:capitalize;font-size:18px}
 .lv.ok,.gr tr.tm .lv.ok{background:#16a34a;color:#fff}
-.gr tr.tm .lv.ex{background:#dc2626;color:#fff}
-.lv.no{position:relative}.lv.no::after{content:"✕";position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;color:#ef4444;font-weight:900;font-size:1.6em;line-height:1;text-shadow:0 0 2px #fff,0 0 3px #fff}
 .ck{display:flex;align-items:center;gap:10px;margin:8px 2px;font-size:15px}.ck input{width:20px;height:20px;margin:0}
 .f1{width:100%;padding:11px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);margin:6px 0}
 .pb{width:100%;background:var(--ac);color:var(--acx);border:0;border-radius:12px;padding:13px;font-weight:700;margin-top:8px}
@@ -122,9 +119,7 @@ const SUPABASE_URL="https://pnovzqmipdctbacqfjmr.supabase.co",SUPABASE_KEY="eyJh
 // ==========================================
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let MAXI=4,MAXO=3; // valori di partenza: si cambiano dall'app (amministratore e coordinatore)
-const SOFT=()=>MAXI>1?MAXI-1:MAXI;
-const SH=["M","P","N","S","R"],NM={M:"Mattina",P:"Pomeriggio",N:"Notte",S:"Smonto",R:"Riposo"},TEAMS=["A","B","C","D","E","MT"],LIM=o=>o?MAXO:MAXI;
+const SH=["M","P","N","S","R"],NM={M:"Mattina",P:"Pomeriggio",N:"Notte",S:"Smonto",R:"Riposo"},TEAMS=["A","B","C","D","E","MT"],MAX=3;
 const MOT=["Ferie","37 Art","104 Legge","Malattia","40 Art","Eso","Studio / esame","Altro motivo"];
 const MESI=["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
 const pad=n=>String(n).padStart(2,"0"),iso=(y,m,d)=>y+"-"+pad(m+1)+"-"+pad(d),fd=k=>k.split("-").reverse().join("/");
@@ -155,12 +150,11 @@ const OW=(()=>{let m=T.getMonth()+(T.getDate()>17?2:1),y=T.getFullYear();if(m>11
 const isOpen=k=>{const[y,m]=k.split("-").map(Number);return y===OW.y&&m-1===OW.m&&today<=dl(k)};
 function toast(t){const e=document.createElement("div");e.className="toast";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),3000)}
 const forDate=(d,t)=>reqs.filter(r=>r.date===d&&r.team===(t||user.team));
-const vis=()=>user&&(user.adm||user.coord)?TEAMS:[user.team]; // privacy: un utente vede solo la propria squadra, amministratore e coordinatore tutte
 const STATO={in_attesa:"In attesa",approvata:"Approvata",rifiutata:"Rifiutata"};
 const forCat=(d,t,o)=>forDate(d,t).filter(r=>!!r.oss===!!o);
 const emps=t=>profs.filter(p=>p.team===t&&!p.is_coord).map(p=>({uid:p.id,oss:!!p.oss,name:p.name,mat:p.matricola})).sort((a,b)=>a.name.localeCompare(b.name));
 function render(){
-document.body.classList.toggle("wide",!!user&&tab==="tbl");document.body.classList.toggle("bgin",!user);
+document.body.classList.toggle("wide",!!user&&tab==="tbl");document.body.classList.toggle("bgin",!user||user.must);
 if(!user&&mode==="forgot"){$("#app").innerHTML=`<div class="auth"><h1>Password dimenticata</h1>
 <p class="mu">Inserisci la tua matricola e poi invia la richiesta all’amministratore.</p>
 <input class="f1" id="fm" placeholder="Numero di matricola" value="${esc(fmat)}">
@@ -181,27 +175,24 @@ if(user.must){$("#app").innerHTML=`<div class="auth"><h1>Scegli una nuova passwo
 <input class="f1" id="n1" type="password" placeholder="Nuova password (almeno 6 caratteri)" autocomplete="new-password">
 <input class="f1" id="n2" type="password" placeholder="Ripeti la nuova password" autocomplete="new-password">
 <p class="err" id="err"></p><button class="pb" data-a="newpw">Salva password</button><button class="lk" data-a="out">Esci</button></div>`;return}
-if(user.needEmail){$("#app").innerHTML=`<div class="auth"><h1>La tua email</h1><p class="mu">Inserisci un indirizzo email per continuare. Lo useremo solo per avvisarti se una tua richiesta di ferie viene rifiutata dal coordinatore.</p>
-<input class="f1" id="em" type="email" placeholder="La tua email" autocomplete="email">
-<p class="err" id="err"></p><button class="pb" data-a="saveemail">Salva e continua</button><button class="lk" data-a="out">Esci</button></div>`;return}
 $("#app").innerHTML=`<header><div class="row"><h1>Ferie reparto</h1><span><button class="ib" data-a="prof">${esc(user.name.split(" ")[0])} · ${user.coord?"coordinatore":user.team}</button> <button class="ib" data-a="out">Esci</button></span></div>
 ${user.coord?"":`<div class="tabs"><button data-a="tab" data-v="cal" class="${tab==="cal"?"on":""}">Calendario</button><button data-a="tab" data-v="tbl" class="${tab==="tbl"?"on":""}">Griglia turno</button></div>`}</header>
 <main>${tab==="cal"&&!user.coord?cal():tbl()}</main>${sel?sheet(sel):""}${prof?profile():""}${rq&&user.coord?rqSheet(rq):""}`}
 function cal(){
 let h=`<div class="yr"><button class="ib" data-a="yr" data-v="-1">‹</button><b>${year}</b><button class="ib" data-a="yr" data-v="1">›</button></div>
-<div class="leg">${SH.map(s=>`<span><span class="chip s${s}">${s}</span> ${NM[s]}</span>`).join(" ")}<span style="color:var(--hol)">● Festivo</span><span>● Tua richiesta</span><span>n = richieste della tua categoria (${user.oss?"OSS":"infermieri"}), max ${LIM(user.oss)}</span><span>Giorni sfumati: non richiedibili (si chiede solo il mese successivo, entro il 17)</span></div>`;
+<div class="leg">${SH.map(s=>`<span><span class="chip s${s}">${s}</span> ${NM[s]}</span>`).join(" ")}<span style="color:var(--hol)">● Festivo</span><span>● Tua richiesta</span><span>n = richieste della tua categoria (${user.oss?"OSS":"infermieri"}), max ${MAX}</span><span>Giorni sfumati: non richiedibili (si chiede solo il mese successivo, entro il 17)</span></div>`;
 const H=hols(year);
 for(let m=0;m<12;m++){
 const off=(new Date(Date.UTC(year,m,1)).getUTCDay()+6)%7,nd=new Date(Date.UTC(year,m+1,0)).getUTCDate();
 h+=`<section class="mon" id="m${m}"><h2>${MESI[m]} ${year}</h2><div class="g">${["L","M","M","G","V","S","D"].map(x=>`<div class="wd">${x}</div>`).join("")}`;
 for(let i=0;i<off;i++)h+=`<div class="e"></div>`;
 for(let d=1;d<=nd;d++){const k=iso(year,m,d),n=forCat(k,user.team,user.oss).length,wd=(off+d-1)%7,s=shift(user.team,year,m,d);
-const cl=["d",(H[m+"-"+d]||wd===6)?"h":"",k===today?"t":"",n>=LIM(user.oss)?"f":"",!isOpen(k)?"x":"",forDate(k).some(r=>r.uid===user.uid)?"m":""].join(" ");
+const cl=["d",(H[m+"-"+d]||wd===6)?"h":"",k===today?"t":"",n>=MAX?"f":"",!isOpen(k)?"x":"",forDate(k).some(r=>r.uid===user.uid)?"m":""].join(" ");
 h+=`<button class="${cl}" data-a="day" data-v="${k}"><b>${d}</b><span class="chip s${s}">${s}</span>${n?`<span class="c">${n}</span>`:""}</button>`}
 h+=`</div></section>`}
 return h}
 function sheet(k){
-const[y,m,d]=k.split("-").map(Number),H=hols(y)[(m-1)+"-"+d],list=forDate(k),nn=forCat(k,user.team,false).length,no=forCat(k,user.team,true).length,mine=list.find(r=>r.uid===user.uid),full=user.oss?no>=MAXO:nn>=MAXI,soft=!user.oss&&nn>=SOFT()&&nn<MAXI,closed=!isOpen(k);
+const[y,m,d]=k.split("-").map(Number),H=hols(y)[(m-1)+"-"+d],list=forDate(k),nn=forCat(k,user.team,false).length,no=forCat(k,user.team,true).length,mine=list.find(r=>r.uid===user.uid),full=(user.oss?no:nn)>=MAX,closed=!isOpen(k);
 const dt=new Date(Date.UTC(y,m-1,d)).toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"});
 const my=shift(user.team,y,m-1,d);
 return `<div class="ov" data-a="close"><div class="sh" data-a="keep"><div class="row"><h2>${dt}</h2><button class="ib" data-a="close">✕</button></div>
@@ -209,12 +200,12 @@ ${H?`<p style="color:var(--hol);margin:2px 0"><b>${H}</b> (festivo)</p>`:""}
 <p>Il tuo turno: <span class="chip s${my}">${NM[my]}</span> ${my==="R"?`<span class="mu">il Riposo non si scala dalle ferie</span>`:""}</p>
 <div class="tg">${TEAMS.map(t=>{const s=shift(t,y,m-1,d);return`<span class="mu">${t}<br><span class="chip s${s}">${s}</span></span>`}).join("")}</div>
 <h2>Squadra ${user.team}: richieste</h2>
-<p class="mu" style="margin:2px 0">Infermieri <b>${nn}/${MAXI}</b> · OSS <b>${no}/${MAXO}</b></p>
-${list.length?list.map(r=>`<div class="li"><span${r.ex&&(r.stato||"in_attesa")==="in_attesa"?` style="color:#dc2626;font-weight:700"`:""}>${esc(r.name)}${r.ex&&(r.stato||"in_attesa")==="in_attesa"?` <span class="mu" style="color:#dc2626">${MAXI}° richiedente: decide il coordinatore</span>`:""}${r.oss?` <span class="mu"><b>OSS</b></span>`:""}${r.uid===user.uid?`<br><span class="mu">${esc(r.reason)} · ${STATO[r.stato||"in_attesa"]}</span>`:""}</span>${r.uid===user.uid?`<button class="ib" data-a="del" data-v="${r.id}">Annulla</button>`:""}</div>`).join(""):`<p class="mu">Nessuna richiesta.</p>`}
+<p class="mu" style="margin:2px 0">Infermieri <b>${nn}/${MAX}</b> · OSS <b>${no}/${MAX}</b></p>
+${list.length?list.map(r=>`<div class="li"><span>${esc(r.name)}${r.oss?` <span class="mu"><b>OSS</b></span>`:""}${r.uid===user.uid?`<br><span class="mu">${esc(r.reason)} · ${STATO[r.stato||"in_attesa"]}</span>`:""}</span>${r.uid===user.uid?`<button class="ib" data-a="del" data-v="${r.id}">Annulla</button>`:""}</div>`).join(""):`<p class="mu">Nessuna richiesta.</p>`}
 ${mine?`<p class="mu">Hai già una richiesta per questo giorno.</p>`
 :closed?`<div class="wn"><b>Richieste non disponibili.</b> Si può chiedere solo il mese successivo, entro il 17: per ${MESI[m-1]} contatta il coordinatore.</div>`
-:full?`<div class="wn"><b>Giornata al completo per ${user.oss?"gli OSS":"gli infermieri"} (${LIM(user.oss)}/${LIM(user.oss)}).</b> Non è possibile inserire altre richieste: comunica la tua richiesta al coordinatore.</div>`
-:`${soft?`<div class="wn"><b>Ci sono già ${nn} persone in ferie in questa giornata.</b> Puoi inviare comunque la richiesta, ma la decisione finale spetterà al coordinatore.</div>`:""}<select class="f1" id="rs">${MOT.map(x=>`<option>${x}</option>`).join("")}</select><input class="f1" id="rx" maxlength="80" placeholder="Specifica il motivo (causale obbligatoria)" style="display:none"><button class="pb" data-a="add" data-v="${k}">Invia richiesta</button>`}
+:full?`<div class="wn"><b>Giornata al completo per ${user.oss?"gli OSS":"gli infermieri"} (${MAX}/${MAX}).</b> Non è possibile inserire altre richieste: comunica la tua richiesta al coordinatore.</div>`
+:`<select class="f1" id="rs">${MOT.map(x=>`<option>${x}</option>`).join("")}</select><input class="f1" id="rx" maxlength="80" placeholder="Specifica il motivo (causale obbligatoria)" style="display:none"><button class="pb" data-a="add" data-v="${k}">Invia richiesta</button>`}
 </div></div>`}
 const TC={A:"#1d4ed8",B:"#0891b2",C:"#c2410c",D:"#7e22ce",E:"#be185d",MT:"#475569"};
 function txt(){const m=gm;let o="Richieste ferie e permessi - "+MESI[m]+" "+year+"\n";
@@ -228,22 +219,18 @@ const off=x=>(H[m+"-"+x.d]||x.w===0),hc=x=>off(x)?"h wk":"",wk=x=>off(x)?"wk":""
 ban=today===cd?`<div class="wn"><b>Oggi si chiude l’inserimento per ${MESI[m]}.</b> La tabella parte in automatico verso il coordinatore.</div>`:today>cd?`<div class="wn"><b>Inserimento per ${MESI[m]} chiuso.</b></div>`:"";
 const dh=`<tr><th class="fc">Dipendente</th>${ds.map(x=>`<th class="${hc(x)}">${dn[x.w]}<br>${x.d}</th>`).join("")}</tr>`;
 let body="";
-vis().forEach(t=>{const E=emps(t),st=`class="tm" style="--tc:${TC[t]}"`;
+TEAMS.forEach(t=>{const E=emps(t),st=`class="tm" style="--tc:${TC[t]}"`;
 let rows=`<tr ${st}><td class="fc mu">Turno</td>${ds.map(x=>{const s=shift(t,year,m,x.d);return`<td class="${wk(x)}"><span class="chip s${s}">${s}</span></td>`}).join("")}</tr>`;
-rows+=E.length?E.map(e=>`<tr ${st}><td class="fc">${esc(e.name)} <span class="mu">${esc(e.mat)}</span>${e.oss?` <span class="mu"><b>OSS</b></span>`:""}</td>${ds.map(x=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid);return r?(()=>{const ok=r.stato==="approvata"?" ok":(r.stato==="rifiutata"?(r.uid===user.uid||user.adm||user.coord?" no":""):(r.ex&&(r.stato||"in_attesa")==="in_attesa"?" ex":"")),ca=user.coord?` data-a="rq" data-v="${r.id}" style="cursor:pointer"`:"";return r.uid===user.uid||user.adm||user.coord?`<td class="lv${ok}"${ca} title="${esc(r.reason)}">${esc(String(r.reason||"").slice(0,3))}</td>`:`<td class="lv${ok}"></td>`})():`<td class="${wk(x)}"></td>`}).join("")}</tr>`).join("")
+rows+=E.length?E.map(e=>`<tr ${st}><td class="fc">${esc(e.name)} <span class="mu">${esc(e.mat)}</span>${e.oss?` <span class="mu"><b>OSS</b></span>`:""}</td>${ds.map(x=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid);return r?(()=>{const ok=r.stato==="approvata"?" ok":"",ca=user.coord?` data-a="rq" data-v="${r.id}" style="cursor:pointer"`:"";return r.uid===user.uid||user.adm||user.coord?`<td class="lv${ok}"${ca} title="${esc(r.reason)}">${esc(String(r.reason||"").slice(0,3))}</td>`:`<td class="lv${ok}"></td>`})():`<td class="${wk(x)}"></td>`}).join("")}</tr>`).join("")
 :`<tr ${st}><td class="fc mu" colspan="${nd+1}">Nessun dipendente registrato</td></tr>`;
-[["Infermieri",false],["OSS",true]].forEach(([lb,o])=>{rows+=`<tr ${st}><td class="fc"><b>${lb}</b> <span class="mu">(max ${LIM(o)})</span></td>${ds.map(x=>{const n=forCat(x.k,t,o).length;return`<td class="${wk(x)}" style="${n>=LIM(o)?"color:var(--hol);font-weight:700":""}">${n||""}</td>`}).join("")}</tr>`});
+[["Infermieri",false],["OSS",true]].forEach(([lb,o])=>{rows+=`<tr ${st}><td class="fc"><b>${lb}</b> <span class="mu">(max ${MAX})</span></td>${ds.map(x=>{const n=forCat(x.k,t,o).length;return`<td class="${wk(x)}" style="${n>=MAX?"color:var(--hol);font-weight:700":""}">${n||""}</td>`}).join("")}</tr>`});
 body+=`<section class="ts" data-t="${t}"><div class="cap" style="--tc:${TC[t]}">Squadra ${t} · ${MESI[m]} ${year} · ${E.length} dipendenti</div>${user.coord?approveBtn(t):""}<div class="tw"><table class="gr"><thead>${dh}</thead><tbody>${rows}</tbody></table></div></section>`});
 return `<div class="yr npr"><button class="ib" data-a="yr" data-v="-1">‹</button><b>${year}</b><button class="ib" data-a="yr" data-v="1">›</button></div>
 <div class="npr">${ban}<select class="f1" id="gm">${MESI.map((x,i)=>`<option value="${i}" ${i===m?"selected":""}>${x}</option>`).join("")}</select></div>
 ${body}
-<p class="mu npr">Ogni squadra ha il suo colore. Cella colorata = richiesta, verde = approvata dal coordinatore, rossa = ultimo posto infermieri, in attesa di decisione; ${user.adm||user.coord?"come amministratore/coordinatore vedi i motivi di tutti.":"il motivo lo vedi solo sulle tue."} Massimo ${MAXI} infermieri e ${MAXO} OSS per squadra e per giornata. Su smartphone ruota il telefono in orizzontale per leggere meglio.</p>
-${user.adm||user.coord?`<div class="npr pbar"><p class="mu"><b>Numero massimo di persone in ferie</b> per giornata e per squadra (vale per tutta l’app):</p>
-<label class="mu">Infermieri <input class="f1" id="mi" type="number" min="1" max="50" value="${MAXI}" style="width:80px;display:inline-block"></label>
-<label class="mu">OSS <input class="f1" id="mo" type="number" min="1" max="50" value="${MAXO}" style="width:80px;display:inline-block"></label>
-<button class="pb" data-a="savemax">Salva limite</button></div>`:""}
-<div class="npr pbar"><p class="mu">${user.adm||user.coord?"Stampa su foglio A4 in orizzontale, con tutti i giorni del mese:":`Stampa la griglia della squadra ${user.team} su un foglio A4 in orizzontale, con tutti i giorni del mese:`}</p>
-${user.adm||user.coord?`<select class="f1" id="pr"><option value="all" ${pt==="all"?"selected":""}>Tutte le squadre (più fogli A4, uno per squadra)</option>${TEAMS.map(t=>`<option value="${t}" ${pt===t?"selected":""}>Solo squadra ${t} (1 foglio A4)</option>`).join("")}</select>`:""}
+<p class="mu npr">Ogni squadra ha il suo colore. Cella colorata = richiesta, verde = approvata dal coordinatore; ${user.adm||user.coord?"come amministratore/coordinatore vedi i motivi di tutti.":"il motivo lo vedi solo sulle tue."} Massimo ${MAX} infermieri e ${MAX} OSS per squadra e per giornata. Su smartphone ruota il telefono in orizzontale per leggere meglio.</p>
+<div class="npr pbar"><p class="mu">Stampa su foglio A4 in orizzontale, con tutti i giorni del mese:</p>
+<select class="f1" id="pr"><option value="all" ${pt==="all"?"selected":""}>Tutte le squadre (più fogli A4, uno per squadra)</option>${TEAMS.map(t=>`<option value="${t}" ${pt===t?"selected":""}>Solo squadra ${t} (1 foglio A4)</option>`).join("")}</select>
 <button class="pb" data-a="print">Stampa</button></div>
 ${user.adm?`<div class="npr"><p class="mu">Invio al coordinatore (solo amministratore): la tabella parte come PDF allegato, identico all’anteprima di stampa, con le squadre scelte nel menu di stampa qui sopra.</p>
 <input class="f1" id="co" type="email" placeholder="Email del coordinatore" value="${esc(coord)}">
@@ -251,49 +238,20 @@ ${user.adm?`<div class="npr"><p class="mu">Invio al coordinatore (solo amministr
 <button class="lk" data-a="pdf">Scarica PDF</button><button class="lk" data-a="copy">Copia tabella</button></div>`:""}`}
 function profile(){return `<div class="ov" data-a="close"><div class="sh" data-a="keep"><div class="row"><h2>${esc(user.name)}</h2><button class="ib" data-a="close">✕</button></div>
 <p class="mu">Matricola ${esc(user.mat)}</p>${user.coord?"":`<label class="mu">Squadra</label><select class="f1" id="pt">${TEAMS.map(t=>`<option ${t===user.team?"selected":""}>${t}</option>`).join("")}</select>
-<label class="ck"><input type="checkbox" id="po" ${user.oss?"checked":""}> OSS</label>
-<label class="mu">Email (solo per avvisi sulle richieste rifiutate)</label><input class="f1" id="pe" type="email" value="${esc(user.email||"")}">`}
+<label class="ck"><input type="checkbox" id="po" ${user.oss?"checked":""}> OSS</label>`}
 ${user.adm?`<hr><h2>Amministratore: reset password</h2><p class="mu">Imposta una password generica: l’utente dovrà cambiarla al primo accesso.</p>
 <input class="f1" id="rm" placeholder="Matricola dell’utente"><input class="f1" id="rp" value="${genpw()}"><button class="pb" data-a="reset">Reimposta password</button><div id="rr"></div><hr>`:""}
-${user.coord?"":`<button class="lk" data-a="pushon">${user.push?"✓ Notifiche attive su questo dispositivo":"Attiva le notifiche su questo dispositivo"}</button><button class="pb" data-a="save">Salva</button>`}<button class="lk" data-a="out">Esci</button></div></div>`}
-function markEx(rs){const g={};rs.forEach(r=>{const k=r.team+"|"+r.date+"|"+(r.oss?1:0);(g[k]=g[k]||[]).push(r)});
-Object.values(g).forEach(a=>{a.sort((x,z)=>String(x.created_at||"").localeCompare(String(z.created_at||""))||String(x.id).localeCompare(String(z.id)));a.forEach((r,i)=>{r.ex=!r.oss&&i>=SOFT()})});return rs}
+${user.coord?"":`<button class="pb" data-a="save">Salva</button>`}<button class="lk" data-a="out">Esci</button></div></div>`}
 async function load(){if(!user)return;
 const a=await sb.from("profiles").select("*");if(a.data)profs=a.data;
-try{const st=await sb.from("impostazioni").select("*").eq("id",1).maybeSingle();if(st.data){MAXI=+st.data.max_inf||MAXI;MAXO=+st.data.max_oss||MAXO;VAPID=st.data.vapid_public||""}}catch(e){}
 let rs=[],f=0;for(;;){const{data,error}=await sb.from("requests").select("*").gte("date",year+"-01-01").lte("date",year+"-12-31").range(f,f+999);
 if(error)break;rs=rs.concat(data);if(data.length<1000)break;f+=1000}
 const m=new Map(profs.map(p=>[p.id,p]));
-reqs=markEx(rs.map(r=>{const p=m.get(r.user_id)||{};return{...r,uid:r.user_id,name:p.name||"?",mat:p.matricola||"",oss:!!p.oss}}));render()}
-// ===== Notifiche push (service worker sw.js) =====
-let VAPID="";
-if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
-const pushOk=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
-const urlB64=x=>{const p="=".repeat((4-x.length%4)%4),r=atob((x+p).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(r,c=>c.charCodeAt(0))};
-async function pushState(){try{if(!pushOk()||Notification.permission!=="granted")return false;const g=await navigator.serviceWorker.getRegistration(),sub=g&&await g.pushManager.getSubscription();return!!sub}catch(e){return false}}
-async function enablePush(){
-if(!pushOk()){toast("Questo dispositivo non supporta le notifiche (su iPhone aggiungi prima l'app alla schermata Home)");return}
-if(!VAPID){toast("Notifiche non ancora configurate dall'amministratore");return}
-try{const perm=await Notification.requestPermission();if(perm!=="granted"){toast("Notifiche non consentite dal dispositivo");return}
-const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
-if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64(VAPID)});
-const j=sub.toJSON(),{error}=await sb.from("push_sub").upsert({user_id:user.uid,endpoint:j.endpoint,sub:j},{onConflict:"endpoint"});
-if(error){toast("Errore: riprova");return}
-user.push=true;toast("Notifiche attivate su questo dispositivo");render()}catch(e){toast("Impossibile attivare le notifiche")}}
-async function dropPush(){try{const g=await navigator.serviceWorker.getRegistration(),sub=g&&await g.pushManager.getSubscription();if(sub){await sb.from("push_sub").delete().eq("endpoint",sub.endpoint);await sub.unsubscribe()}}catch(e){}}
-// ===== Aggiornamento in tempo reale (Supabase Realtime) =====
-let rtCh=null,rtT=null,rtDirty=false;
-const rtBusy=()=>{const e=document.activeElement;return!!sel||prof||(e&&["INPUT","SELECT","TEXTAREA"].includes(e.tagName))};
-function liveRefresh(){clearTimeout(rtT);rtT=setTimeout(async()=>{if(!user||user.must||user.needEmail)return;if(rtBusy()){rtDirty=true;return}rtDirty=false;await load()},400)}
-function liveOff(){if(rtCh){try{sb.removeChannel(rtCh)}catch(e){}rtCh=null}}
-function liveOn(){liveOff();if(!user)return;try{rtCh=sb.channel("live-"+user.uid);["requests","profiles","impostazioni"].forEach(t=>{rtCh=rtCh.on("postgres_changes",{event:"*",schema:"public",table:t},liveRefresh)});rtCh.subscribe()}catch(e){}}
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&user&&!user.must&&!user.needEmail){liveOn();liveRefresh()}});
-async function chkEmail(){if(user.coord)return;try{const c=await sb.from("contatti").select("email").eq("user_id",user.uid).maybeSingle();if(!c.error){user.email=(c.data&&c.data.email)||"";user.needEmail=!user.email}}catch(e){}}
-const EMRE=/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
+reqs=rs.map(r=>{const p=m.get(r.user_id)||{};return{...r,uid:r.user_id,name:p.name||"?",mat:p.matricola||"",oss:!!p.oss}});render()}
 async function start(){const{data:{session}}=await sb.auth.getSession();if(!session){user=null;render();return}
 const{data}=await sb.from("profiles").select("*").eq("id",session.user.id).single();
 if(!data){user=null;render();return}
-user={uid:data.id,name:data.name,team:data.team,mat:data.matricola,adm:!!data.is_admin,coord:!!data.is_coord,oss:!!data.oss,must:!!data.must_change};if(user.coord)tab="tbl";await chkEmail();user.push=await pushState();await load();liveOn();
+user={uid:data.id,name:data.name,team:data.team,mat:data.matricola,adm:!!data.is_admin,coord:!!data.is_coord,oss:!!data.oss,must:!!data.must_change};if(user.coord)tab="tbl";await load();
 if(year===T.getFullYear()){const e=document.getElementById("m"+T.getMonth());if(e&&tab==="cal")e.scrollIntoView()}}
 async function auth(){const mat=$("#ae").value.trim().toLowerCase(),p=$("#ap").value,er=$("#err");let r;
 if(!mat||!p){er.textContent="Compila tutti i campi.";return}
@@ -308,12 +266,11 @@ if(mode==="reg"&&$("#ao").checked){try{await sb.from("profiles").update({oss:tru
 await start()}
 async function addReq(k,reason){
 if(!isOpen(k)){toast("Termine scaduto: contatta il coordinatore");return}
-const pre=!user.oss&&forCat(k,user.team,false).length>=SOFT();
 const{error}=await sb.from("requests").insert({date:k,reason});
 if(error){const m=error.message||"";
 toast(m.includes("LIMITE_3")?"Giornata al completo: comunica la richiesta al coordinatore":m.includes("TERMINE")?"Termine scaduto: contatta il coordinatore":error.code==="23505"?"Hai già una richiesta per questo giorno":"Errore: riprova");
 await load();return}
-sel=null;toast(pre?"Richiesta inviata: c'erano già "+SOFT()+" persone in ferie, la decisione finale spetta al coordinatore":"Richiesta inviata");await load()}
+sel=null;toast("Richiesta inviata");await load()}
 // ===== Coordinatore: approva o rifiuta le richieste =====
 const pendIds=t=>reqs.filter(r=>r.team===t&&r.date.startsWith(year+"-"+pad(gm+1))&&(r.stato||"in_attesa")==="in_attesa").map(r=>r.id);
 const approveBtn=t=>{const n=pendIds(t).length;return`<button class="pb npr" data-a="apvall" data-v="${t}" style="margin:8px 0">✓ Approva tutte le richieste della squadra ${t} (${n} in attesa)</button>`};
@@ -325,11 +282,7 @@ return`<div class="ov" data-a="close"><div class="sh" data-a="keep"><div class="
 async function setStato(ids,st){if(!user||!user.coord||!ids.length)return;
 const{error}=await sb.rpc("imposta_stato",{p_ids:ids.map(String),p_stato:st});
 if(error){toast("Errore: riprova");return}
-let ex="";
-if(st==="rifiutata"){try{const r=await sb.functions.invoke("notifica-rifiuto",{body:{ids:ids.map(String)}});
-const d=r.data||{},pt=[];if(d.inviate)pt.push("email");if(d.push)pt.push("notifica");
-ex=r.error?" (avviso non inviato)":(pt.length?" · avviso inviato: "+pt.join(" e "):" (l'utente non ha email né notifiche attive)")}catch(e){ex=" (avviso non inviato)"}}
-toast(st==="approvata"?(ids.length>1?ids.length+" richieste approvate":"Richiesta approvata"):"Richiesta rifiutata"+ex);await load()}
+toast(st==="approvata"?(ids.length>1?ids.length+" richieste approvate":"Richiesta approvata"):"Richiesta rifiutata");await load()}
 // ===== PDF identico all'anteprima di stampa (A4 orizzontale, un foglio per squadra) =====
 const PDFLIBS=["https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js","https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"];
 const loadScript=u=>new Promise((ok,ko)=>{const e=document.createElement("script");e.src=u;e.onload=ok;e.onerror=ko;document.head.appendChild(e)});
@@ -349,15 +302,14 @@ const head=[[{content:"Dipendente",styles:{halign:"left"}},...days.map(x=>({cont
 const lt=tint(tc,.12),body=[];
 body.push([{content:"Turno",styles:{halign:"left",fillColor:lt,textColor:[80,80,80]}},...days.map(x=>{const sh=shift(t,year,m,x.d);return{content:sh,styles:{fillColor:rgb(SC[sh][0]),textColor:rgb(SC[sh][1]),fontStyle:"bold"}}})]);
 if(E.length){E.forEach(e=>body.push([{content:e.name+"  "+e.mat+(e.oss?"  OSS":""),styles:{halign:"left",fillColor:lt}},...days.map(x=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid);
-return r?{content:String(r.reason||"?").slice(0,3),rej:r.stato==="rifiutata",styles:{fillColor:r.stato==="approvata"?[22,163,74]:(r.ex&&(r.stato||"in_attesa")==="in_attesa"?[220,38,38]:tc),textColor:WHITE,fontStyle:"bold"}}:{content:"",styles:{fillColor:x.off?WK:WHITE}}})]))}
+return r?{content:String(r.reason||"?").slice(0,3),styles:{fillColor:r.stato==="approvata"?[22,163,74]:tc,textColor:WHITE,fontStyle:"bold"}}:{content:"",styles:{fillColor:x.off?WK:WHITE}}})]))}
 else body.push([{content:"Nessun dipendente registrato",colSpan:nd+1,styles:{halign:"left",fillColor:lt,textColor:[80,80,80]}}]);
-[["Infermieri",false],["OSS",true]].forEach(([lb,o])=>body.push([{content:lb+" (max "+LIM(o)+")",styles:{halign:"left",fontStyle:"bold",fillColor:lt}},...days.map(x=>{const n=reqs.filter(r=>r.date===x.k&&r.team===t&&!!r.oss===o).length;
-return{content:n?String(n):"",styles:{fillColor:x.off?WK:WHITE,textColor:n>=LIM(o)?RED:BLACK,fontStyle:n>=LIM(o)?"bold":"normal"}}})]));
+[["Infermieri",false],["OSS",true]].forEach(([lb,o])=>body.push([{content:lb+" (max "+MAX+")",styles:{halign:"left",fontStyle:"bold",fillColor:lt}},...days.map(x=>{const n=reqs.filter(r=>r.date===x.k&&r.team===t&&!!r.oss===o).length;
+return{content:n?String(n):"",styles:{fillColor:x.off?WK:WHITE,textColor:n>=MAX?RED:BLACK,fontStyle:n>=MAX?"bold":"normal"}}})]));
 const cs={0:{cellWidth:FC,halign:"left",cellPadding:{top:1.6,bottom:1.6,left:2,right:1}}};for(let i=1;i<=nd;i++)cs[i]={cellWidth:(W-FC)/nd};
 doc.autoTable({head,body,startY:19,margin:{left:8,right:8,top:8,bottom:8},tableWidth:W,theme:"grid",columnStyles:cs,
 styles:{font:"helvetica",fontSize:8,cellPadding:{top:1.6,bottom:1.6,left:0,right:0},halign:"center",valign:"middle",lineColor:[153,153,153],lineWidth:.2,textColor:BLACK,overflow:"ellipsize"},
-headStyles:{fillColor:WHITE,textColor:BLACK,fontStyle:"bold",fontSize:7.5},
-didDrawCell:d=>{if(d.section==="body"&&d.cell.raw&&d.cell.raw.rej){const c=d.cell,q=1.2;doc.setDrawColor(220,38,38);doc.setLineWidth(.6);doc.line(c.x+q,c.y+q,c.x+c.width-q,c.y+c.height-q);doc.line(c.x+c.width-q,c.y+q,c.x+q,c.y+c.height-q)}}})});
+headStyles:{fillColor:WHITE,textColor:BLACK,fontStyle:"bold",fontSize:7.5}})});
 return doc}
 const pdfName=()=>"Turni_ferie_"+MESI[gm]+"_"+year+(pt==="all"?"":"_squadra_"+pt)+".pdf";
 // Invio (solo amministratore): 1) email automatica con PDF allegato (funzione Supabase "invia-turni"), 2) condivisione con allegato (smartphone), 3) scarica il PDF e apre l'email
@@ -373,14 +325,14 @@ doc.save(fn);toast("PDF scaricato: allegalo all'email");
 window.location.href="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(text+"\n\n(Allega il file "+fn+" appena scaricato)")}
 async function dlPdf(){if(!user||!user.adm)return;toast("Preparo il PDF…");try{(await buildPdf(pt)).save(pdfName())}catch(e){toast("Errore nella creazione del PDF")}}
 // Stampa: tutte le squadre (un foglio A4 orizzontale per squadra) oppure una sola squadra (1 foglio)
-function doPrint(){const ps=$("#ps"),tp=user&&(user.adm||user.coord)?pt:user.team; // gli altri utenti stampano solo la propria squadra
-ps.textContent=tp==="all"?"":"@media print{.ts:not([data-t=\""+tp+"\"]){display:none!important}}";
+function doPrint(){const ps=$("#ps");
+ps.textContent=pt==="all"?"":"@media print{.ts:not([data-t=\""+pt+"\"]){display:none!important}}";
 window.print()}
 window.addEventListener("afterprint",()=>{const ps=$("#ps");if(ps)ps.textContent=""});
 document.addEventListener("click",async ev=>{
 const el=ev.target.closest("[data-a]");if(!el)return;const a=el.dataset.a,v=el.dataset.v;
 if(a==="keep")return;
-if(a==="close"){if(ev.target.closest(".ib")||ev.target.classList.contains("ov")){sel=null;prof=false;rq=null;render();if(rtDirty){rtDirty=false;liveRefresh()}}return}
+if(a==="close"){if(ev.target.closest(".ib")||ev.target.classList.contains("ov")){sel=null;prof=false;rq=null;render()}return}
 if(a==="mode"){mode=mode==="reg"?"login":"reg";render()}
 else if(a==="auth")auth();
 else if(a==="tab"){if(!user.coord){tab=v;render();scrollTo(0,0)}}
@@ -392,20 +344,9 @@ else if(a==="day"){sel=v;render()}
 else if(a==="add"){let r=$("#rs").value;if(r==="Altro motivo"){const x=$("#rx").value.trim();if(x.length<3){toast("Specifica il motivo (causale)");return}r="Altro: "+x}addReq(v,r)}
 else if(a==="del"){await sb.from("requests").delete().eq("id",v);await load()}
 else if(a==="prof"){prof=true;render()}
-else if(a==="savemax"){if(!(user.adm||user.coord))return;const mi=parseInt($("#mi").value,10),mo=parseInt($("#mo").value,10);
-if(!(mi>=1&&mi<=50&&mo>=1&&mo<=50)){toast("Inserisci numeri da 1 a 50");return}
-const{error}=await sb.from("impostazioni").update({max_inf:mi,max_oss:mo}).eq("id",1);
-if(error)toast("Errore: riprova");else{toast("Limite salvato: "+mi+" infermieri, "+mo+" OSS");await load()}}
-else if(a==="pushon"){await enablePush()}
-else if(a==="saveemail"){const em=($("#em").value||"").trim().toLowerCase(),er=$("#err");
-if(!EMRE.test(em)){er.textContent="Inserisci un indirizzo email valido.";return}
-const{error}=await sb.from("contatti").upsert({user_id:user.uid,email:em});if(error){er.textContent="Errore: riprova.";return}
-user.email=em;user.needEmail=false;toast("Email salvata");await load()}
-else if(a==="save"){const pe=($("#pe")?$("#pe").value:"").trim().toLowerCase();
-if(pe&&pe!==user.email){if(!EMRE.test(pe)){toast("Email non valida");return}const r2=await sb.from("contatti").upsert({user_id:user.uid,email:pe});if(r2.error){toast("Errore: riprova");return}user.email=pe}
-const t=$("#pt").value,os=$("#po").checked;const{error}=await sb.from("profiles").update({team:t,oss:os}).eq("id",user.uid);
+else if(a==="save"){const t=$("#pt").value,os=$("#po").checked;const{error}=await sb.from("profiles").update({team:t,oss:os}).eq("id",user.uid);
 if(error)toast("Errore: riprova");else{user.team=t;user.oss=os;gt=null;prof=false;await load()}}
-else if(a==="out"){liveOff();await dropPush();await sb.auth.signOut();user=null;prof=false;sel=null;reqs=[];render()}
+else if(a==="out"){await sb.auth.signOut();user=null;prof=false;sel=null;reqs=[];render()}
 else if(a==="print")doPrint();else if(a==="sendpdf")await sendPdf();else if(a==="pdf")await dlPdf();
 else if(a==="forgot"){mode="forgot";render()}
 else if(a==="back"){mode="login";render()}
@@ -428,6 +369,6 @@ const m=$("#ml");if(m)m.href="mailto:"+encodeURIComponent(coord)+"?subject="+enc
 (async()=>{
 if(SUPABASE_URL.startsWith("INCOLLA")){$("#app").innerHTML=`<div class="auth"><h1>Configurazione mancante</h1><p>Inserisci URL e chiave di Supabase in cima al file index.html (vedi GUIDA.md).</p></div>`;return}
 sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);render();await start();
-setInterval(()=>{if(user&&!user.must&&!user.needEmail&&!sel&&!prof&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="SELECT")load()},30000)
+setInterval(()=>{if(user&&!user.must&&!sel&&!prof&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="SELECT")load()},30000)
 })();
 </script></body></html>
