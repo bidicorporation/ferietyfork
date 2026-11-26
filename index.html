@@ -84,7 +84,8 @@ th{background:var(--bg);font-size:12px;color:var(--mu)}
 .gr tr.tm .fc{border-left:6px solid var(--tc);background:color-mix(in srgb,var(--tc) 12%,var(--sf))}
 .gr tr.tm .lv{background:var(--tc);color:#fff}
 .pbar{margin-top:14px}
-.gr tr.tm .lv.cb:not(.ok):not(.no):not(.ex){background:#0d9488;color:#fff}
+.gr tr.tm td.lv.cb{background:#7dd3fc;color:#0c4a6e;font-weight:700}
+.gr tr.tm td.lv.cb.ok{box-shadow:inset 0 0 0 2px #16a34a}
 .cbx{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:8px 10px;margin:6px 0}
 @media (max-width:700px){
 .gr td.lv{font-size:6px;letter-spacing:-.2px}
@@ -164,13 +165,27 @@ const emps=t=>profs.filter(p=>p.team===t&&!p.is_coord).map(p=>({uid:p.id,oss:!!p
 // ===== Cambio turno: lettera C, dettagli (con chi e che turno farai) salvati nella colonna "cambio" =====
 const isCb=r=>!!r.cambio||r.reason==="Cambio turno";
 const ab=r=>isCb(r)?"C":String(r.reason||"").slice(0,3);
-const cbTxt=r=>{const c=r.cambio;if(!c)return String(r.reason||"");return"Cambio turno con "+c.con_nome+" (squadra "+c.con_team+") · tu farai il turno "+(NM[c.turno]||c.turno)+" il "+fd(c.data)};
+const sOf=(t,k)=>{const[y,m,d]=k.split("-").map(Number);return shift(t,y,m-1,d)};
+// Testo del cambio: u = utente che guarda (se è il collega, la frase è vista dal suo lato)
+const cbTxt=(r,u)=>{const c=r.cambio;if(!c)return String(r.reason||"");const same=r.date===c.data,sm=NM[c.mio||sOf(r.team,r.date)],sx=NM[c.turno]||c.turno;
+if(u&&u!==r.uid)return same?`Cambio turno con ${r.name} (squadra ${r.team}): il ${fd(r.date)} farai il turno ${sm} al posto suo e lui farà il tuo (${sx})`
+:`Cambio turno con ${r.name} (squadra ${r.team}): il ${fd(r.date)} farai il suo turno ${sm}; il ${fd(c.data)} lui farà il tuo turno ${sx}`;
+return same?`Cambio turno con ${c.con_nome} (squadra ${c.con_team}): il ${fd(r.date)} tu farai il turno ${sx} al posto suo e lui farà il tuo (${sm})`
+:`Cambio turno con ${c.con_nome} (squadra ${c.con_team}): il ${fd(r.date)} lui farà il tuo turno ${sm}; il ${fd(c.data)} tu farai il suo turno ${sx}`};
+// Segni "C" per i due colleghi coinvolti, su entrambe le date del cambio (non per i cambi rifiutati)
+function cbMap(){const cm={};reqs.forEach(q=>{const c=q.cambio;if(!c||q.stato==="rifiutata")return;[[q.uid,q.date],[q.uid,c.data],[c.con_uid,q.date],[c.con_uid,c.data]].forEach(([u,d])=>{const kk=u+"|"+d;if(!cm[kk])cm[kk]=q})});return cm}
 const cbOpts=()=>profs.filter(p=>!p.is_coord&&p.id!==user.uid&&!!p.oss===!!user.oss).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name)} · squadra ${p.team}</option>`).join("");
-function cbCalc(){const u=$("#cc")&&$("#cc").value,d=$("#cd")&&$("#cd").value,o=$("#ct");if(!o)return null;
-const p=profs.find(x=>x.id===u);if(!p||!/^\d{4}-\d{2}-\d{2}$/.test(d||"")){o.textContent="Scegli collega e data: vedrai il turno che farai.";return null}
-const[y,m,dd]=d.split("-").map(Number),sh=shift(p.team,y,m-1,dd),bad=(sh==="R"||sh==="S");
-o.innerHTML=`Il ${fd(d)} farai il turno <span class="chip s${sh}">${NM[sh]}</span> (squadra ${p.team})`+(bad?` — non è un turno di lavoro: scegli un'altra data`:"");
-return bad?null:{con_uid:p.id,con_nome:p.name,con_team:p.team,data:d,turno:sh}}
+function cbCalc(){const b=$("#cb"),k=b&&b.dataset.k,u=$("#cc")&&$("#cc").value,d=$("#cd")&&$("#cd").value,o=$("#ct");if(!o||!k)return null;
+const m0=today.slice(0,8)+"01",p=profs.find(x=>x.id===u);
+if(!p||!/^\d{4}-\d{2}-\d{2}$/.test(d||"")){o.textContent="Scegli il collega e la data del cambio: vedrai il turno che farai.";return null}
+if(d<m0){o.textContent="Non puoi fare cambi turno in mesi precedenti.";return null}
+const mio=sOf(user.team,k),sh=sOf(p.team,d),chip=x=>`<span class="chip s${x}">${NM[x]}</span>`;
+if(mio==="R"||mio==="S"){o.innerHTML=`Il ${fd(k)} sei a ${NM[mio]}: non hai un turno da cambiare.`;return null}
+if(sh==="R"||sh==="S"){o.innerHTML=`Il ${fd(d)} il collega è a ${NM[sh]}: scegli un'altra data.`;return null}
+if(d===k&&sh===mio){o.textContent="Avete lo stesso turno quel giorno: non c'è nulla da cambiare.";return null}
+o.innerHTML=d===k?`Il ${fd(k)} farai il turno ${chip(sh)} (squadra ${p.team}) e il collega farà il tuo (${chip(mio)}).`
+:`Il ${fd(d)} farai il turno ${chip(sh)} (squadra ${p.team}); il ${fd(k)} il collega farà il tuo turno ${chip(mio)}.`;
+return{con_uid:p.id,con_nome:p.name,con_team:p.team,data:d,turno:sh,mio}}
 function render(){
 document.body.classList.toggle("wide",!!user&&tab==="tbl");document.body.classList.toggle("bgin",!user);
 if(!user&&mode==="forgot"){$("#app").innerHTML=`<div class="auth"><h1>Password dimenticata</h1>
@@ -215,21 +230,23 @@ return h}
 function sheet(k){
 const[y,m,d]=k.split("-").map(Number),H=hols(y)[(m-1)+"-"+d],list=forDate(k).filter(r=>!isCb(r)||r.uid===user.uid),nn=forCat(k,user.team,false).length,no=forCat(k,user.team,true).length,mine=list.find(r=>r.uid===user.uid),full=user.oss?no>=MAXO:nn>=MAXI,soft=!user.oss&&nn>=SOFT()&&nn<MAXI,closed=!isOpen(k);
 const dt=new Date(Date.UTC(y,m-1,d)).toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"});
-const my=shift(user.team,y,m-1,d);
+const my=shift(user.team,y,m-1,d),past=k<today.slice(0,8)+"01",inv=reqs.filter(q=>q.cambio&&q.stato!=="rifiutata"&&(q.uid===user.uid||q.cambio.con_uid===user.uid)&&(q.date===k||q.cambio.data===k)&&!(q.uid===user.uid&&q.date===k));
 return `<div class="ov" data-a="close"><div class="sh" data-a="keep"><div class="row"><h2>${dt}</h2><button class="ib" data-a="close">✕</button></div>
 ${H?`<p style="color:var(--hol);margin:2px 0"><b>${H}</b> (festivo)</p>`:""}
 <p>Il tuo turno: <span class="chip s${my}">${NM[my]}</span> ${my==="R"?`<span class="mu">il Riposo non si scala dalle ferie</span>`:""}</p>
 <div class="tg">${TEAMS.map(t=>{const s=shift(t,y,m-1,d);return`<span class="mu">${t}<br><span class="chip s${s}">${s}</span></span>`}).join("")}</div>
+${inv.length?`<div class="cbx"><b>Cambio turno</b>${inv.map(q=>`<p class="mu" style="margin:3px 0">${esc(cbTxt(q,user.uid))} · ${STATO[q.stato||"in_attesa"]}</p>`).join("")}</div>`:""}
 <h2>Squadra ${user.team}: richieste</h2>
 <p class="mu" style="margin:2px 0">Infermieri <b>${nn}/${MAXI}</b> · OSS <b>${no}/${MAXO}</b></p>
 ${list.length?list.map(r=>`<div class="li"><span${r.ex&&(r.stato||"in_attesa")==="in_attesa"?` style="color:#dc2626;font-weight:700"`:""}>${esc(r.name)}${r.ex&&(r.stato||"in_attesa")==="in_attesa"?` <span class="mu" style="color:#dc2626">${MAXI}° richiedente: decide il coordinatore</span>`:""}${r.oss?` <span class="mu"><b>OSS</b></span>`:""}${r.uid===user.uid?`<br><span class="mu">${esc(cbTxt(r))} · ${STATO[r.stato||"in_attesa"]}</span>`:""}</span>${r.uid===user.uid?`<button class="ib" data-a="del" data-v="${r.id}">Annulla</button>`:""}</div>`).join(""):`<p class="mu">Nessuna richiesta.</p>`}
 ${mine?`<p class="mu">Hai già una richiesta per questo giorno.</p>`
+:past?`<div class="wn"><b>Mese passato:</b> non si possono più fare richieste.</div>`
 :`${closed?`<div class="wn"><b>Ferie non richiedibili per questo giorno.</b> Si può chiedere solo il mese successivo, entro il 17: per ${MESI[m-1]} contatta il coordinatore. Il <b>cambio turno</b> si può chiedere sempre.</div>`
 :full?`<div class="wn"><b>Giornata al completo per ${user.oss?"gli OSS":"gli infermieri"} (${LIM(user.oss)}/${LIM(user.oss)}).</b> Le ferie non si possono inserire: comunica la tua richiesta al coordinatore. Il <b>cambio turno</b> si può chiedere sempre.</div>`
 :soft?`<div class="wn"><b>Ci sono già ${nn} persone in ferie in questa giornata.</b> Puoi inviare comunque la richiesta, ma la decisione finale spetterà al coordinatore.</div>`:""}<select class="f1" id="rs">${((closed||full)?["Cambio turno"]:MOT).map(x=>`<option>${x}</option>`).join("")}</select><input class="f1" id="rx" maxlength="80" placeholder="Specifica il motivo (causale obbligatoria)" style="display:none">
-<div id="cb" class="cbx" style="display:${closed||full?"block":"none"}"><b>Cambio turno</b>
+<div id="cb" class="cbx" data-k="${k}" style="display:${closed||full?"block":"none"}"><b>Cambio turno</b>
 <label class="mu">Con chi fai il cambio</label><select class="f1" id="cc"><option value="">Scegli il collega…</option>${cbOpts()}</select>
-<label class="mu">Data del cambio (il giorno in cui lavorerai al posto suo)</label><input class="f1" id="cd" type="date">
+<label class="mu">Data del cambio (può essere anche lo stesso giorno)</label><input class="f1" id="cd" type="date" value="${k}" min="${today.slice(0,8)}01">
 <p id="ct" class="mu" style="margin:4px 0">Scegli collega e data: vedrai il turno che farai.</p></div><button class="pb" data-a="add" data-v="${k}">Invia richiesta</button>`}
 </div></div>`}
 const TC={A:"#1d4ed8",B:"#0891b2",C:"#c2410c",D:"#7e22ce",E:"#be185d",MT:"#475569"};
@@ -243,17 +260,25 @@ for(let d=1;d<=nd;d++)ds.push({d,k:iso(year,m,d),w:new Date(Date.UTC(year,m,d)).
 const off=x=>(H[m+"-"+x.d]||x.w===0),hc=x=>off(x)?"h wk":"",wk=x=>off(x)?"wk":"",cd=dl(iso(year,m,1)),
 ban=today===cd?`<div class="wn"><b>Oggi si chiude l’inserimento per ${MESI[m]}.</b> La tabella parte in automatico verso il coordinatore.</div>`:today>cd?`<div class="wn"><b>Inserimento per ${MESI[m]} chiuso.</b></div>`:"";
 const dh=`<tr><th class="fc">Dipendente</th>${ds.map(x=>`<th class="${hc(x)}">${dn[x.w]}<br>${x.d}</th>`).join("")}</tr>`;
+const cm=cbMap();
+const cell=(e,x)=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid),see=e.uid===user.uid||user.adm||user.coord;
+if(r){if(isCb(r)&&!see)return`<td class="${wk(x)}"></td>`;
+const ok=r.stato==="approvata"?" ok":(r.stato==="rifiutata"?(see?" no":""):(r.ex&&(r.stato||"in_attesa")==="in_attesa"?" ex":"")),ca=user.coord?` data-a="rq" data-v="${r.id}" style="cursor:pointer"`:"";
+return see?`<td class="lv${ok}${isCb(r)&&r.stato!=="rifiutata"?" cb":""}"${ca} title="${esc(cbTxt(r))}">${esc(ab(r))}</td>`:`<td class="lv${ok}"></td>`}
+const q=cm[e.uid+"|"+x.k];
+if(q&&see){const ca=user.coord?` data-a="rq" data-v="${q.id}" style="cursor:pointer"`:"";return`<td class="lv cb${q.stato==="approvata"?" ok":""}"${ca} title="${esc(cbTxt(q,e.uid))}">C</td>`}
+return`<td class="${wk(x)}"></td>`};
 let body="";
 vis().forEach(t=>{const E=emps(t),st=`class="tm" style="--tc:${TC[t]}"`;
 let rows=`<tr ${st}><td class="fc mu">Turno</td>${ds.map(x=>{const s=shift(t,year,m,x.d);return`<td class="${wk(x)}"><span class="chip s${s}">${s}</span></td>`}).join("")}</tr>`;
-rows+=E.length?E.map(e=>`<tr ${st}><td class="fc">${esc(e.name)} <span class="mu">${esc(e.mat)}</span>${e.oss?` <span class="mu"><b>OSS</b></span>`:""}</td>${ds.map(x=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid);return r?(()=>{const ok=r.stato==="approvata"?" ok":(r.stato==="rifiutata"?(r.uid===user.uid||user.adm||user.coord?" no":""):(r.ex&&(r.stato||"in_attesa")==="in_attesa"?" ex":"")),ca=user.coord?` data-a="rq" data-v="${r.id}" style="cursor:pointer"`:"";return r.uid===user.uid||user.adm||user.coord?`<td class="lv${ok}${isCb(r)?" cb":""}"${ca} title="${esc(cbTxt(r))}">${esc(ab(r))}</td>`:`<td class="lv${ok}"></td>`})():`<td class="${wk(x)}"></td>`}).join("")}</tr>`).join("")
+rows+=E.length?E.map(e=>`<tr ${st}><td class="fc">${esc(e.name)} <span class="mu">${esc(e.mat)}</span>${e.oss?` <span class="mu"><b>OSS</b></span>`:""}</td>${ds.map(x=>cell(e,x)).join("")}</tr>`).join("")
 :`<tr ${st}><td class="fc mu" colspan="${nd+1}">Nessun dipendente registrato</td></tr>`;
 [["Infermieri",false],["OSS",true]].forEach(([lb,o])=>{rows+=`<tr ${st}><td class="fc"><b>${lb}</b> <span class="mu">(max ${LIM(o)})</span></td>${ds.map(x=>{const n=forCat(x.k,t,o).length;return`<td class="${wk(x)}" style="${n>=LIM(o)?"color:var(--hol);font-weight:700":""}">${n||""}</td>`}).join("")}</tr>`});
 body+=`<section class="ts" data-t="${t}"><div class="cap" style="--tc:${TC[t]}">Squadra ${t} · ${MESI[m]} ${year} · ${E.length} dipendenti</div>${user.coord?approveBtn(t):""}<div class="tw"><table class="gr"><thead>${dh}</thead><tbody>${rows}</tbody></table></div></section>`});
 return `<div class="yr npr"><button class="ib" data-a="yr" data-v="-1">‹</button><b>${year}</b><button class="ib" data-a="yr" data-v="1">›</button></div>
 <div class="npr">${ban}<select class="f1" id="gm">${MESI.map((x,i)=>`<option value="${i}" ${i===m?"selected":""}>${x}</option>`).join("")}</select></div>
 ${body}
-<p class="mu npr">Ogni squadra ha il suo colore. Cella colorata = richiesta, C turchese = cambio turno, non conta nel limite ferie (passa il mouse per vedere con chi e che turno farai), verde = approvata dal coordinatore, rossa = ultimo posto infermieri, in attesa di decisione; ${user.adm||user.coord?"come amministratore/coordinatore vedi i motivi di tutti.":"il motivo lo vedi solo sulle tue."} Massimo ${MAXI} infermieri e ${MAXO} OSS per squadra e per giornata. Su smartphone ruota il telefono in orizzontale per leggere meglio.</p>
+<p class="mu npr">Ogni squadra ha il suo colore. Cella colorata = richiesta, C celeste = cambio turno (bordo verde = approvato), visibile solo ai due colleghi coinvolti e non conta nel limite ferie (passa il mouse per vedere con chi e che turno farai), verde = approvata dal coordinatore, rossa = ultimo posto infermieri, in attesa di decisione; ${user.adm||user.coord?"come amministratore/coordinatore vedi i motivi di tutti.":"il motivo lo vedi solo sulle tue."} Massimo ${MAXI} infermieri e ${MAXO} OSS per squadra e per giornata. Su smartphone ruota il telefono in orizzontale per leggere meglio.</p>
 ${user.adm||user.coord?`<div class="npr pbar"><p class="mu"><b>Numero massimo di persone in ferie</b> per giornata e per squadra (vale per tutta l’app):</p>
 <label class="mu">Infermieri <input class="f1" id="mi" type="number" min="1" max="50" value="${MAXI}" style="width:80px;display:inline-block"></label>
 <label class="mu">OSS <input class="f1" id="mo" type="number" min="1" max="50" value="${MAXO}" style="width:80px;display:inline-block"></label>
@@ -324,10 +349,11 @@ if(mode==="reg"&&$("#ao").checked){try{await sb.from("profiles").update({oss:tru
 await start()}
 async function addReq(k,reason,cambio){
 if(reason!=="Cambio turno"&&!isOpen(k)){toast("Termine scaduto: contatta il coordinatore");return}
+if(reason==="Cambio turno"&&k<today.slice(0,8)+"01"){toast("Non si possono fare cambi turno in mesi precedenti");return}
 const pre=!cambio&&!user.oss&&forCat(k,user.team,false).length>=SOFT();
 const{error}=await sb.from("requests").insert(cambio?{date:k,reason,cambio}:{date:k,reason});
 if(error){const m=error.message||"";
-toast(m.includes("LIMITE_3")?"Giornata al completo: comunica la richiesta al coordinatore":m.includes("TERMINE")?"Termine scaduto: contatta il coordinatore":error.code==="23505"?"Hai già una richiesta per questo giorno":"Errore: riprova");
+toast(m.includes("LIMITE_3")?"Giornata al completo: comunica la richiesta al coordinatore":m.includes("PASSATO")?"Non si possono fare cambi turno in mesi precedenti":m.includes("TERMINE")?"Termine scaduto: contatta il coordinatore":error.code==="23505"?"Hai già una richiesta per questo giorno":"Errore: riprova");
 await load();return}
 sel=null;toast(pre?"Richiesta inviata: c'erano già "+SOFT()+" persone in ferie, la decisione finale spetta al coordinatore":"Richiesta inviata");await load()}
 // ===== Coordinatore: approva o rifiuta le richieste =====
@@ -358,14 +384,17 @@ const WK=[247,234,233],RED=[180,35,24],WHITE=[255,255,255],BLACK=[0,0,0],W=281,F
 const days=[];for(let d=1;d<=nd;d++){const w=new Date(Date.UTC(year,m,d)).getUTCDay();days.push({d,k:iso(year,m,d),w,off:!!(H[m+"-"+d]||w===0)})}
 const list=sel==="all"?TEAMS:[sel];let first=true;
 list.forEach(t=>{if(!first)doc.addPage();first=false;
-const E=emps(t),tc=rgb(TC[t]),mese=MESI[m][0].toUpperCase()+MESI[m].slice(1);
+const E=emps(t),cm=cbMap(),tc=rgb(TC[t]),mese=MESI[m][0].toUpperCase()+MESI[m].slice(1);
 doc.setFillColor(...tc);doc.rect(8,8,W,9,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(14);
 doc.text("Squadra "+t+" · "+mese+" "+year+" · "+E.length+" dipendenti",12,14.3);
 const head=[[{content:"Dipendente",styles:{halign:"left"}},...days.map(x=>({content:dn[x.w]+"\n"+x.d,styles:{textColor:x.off?RED:BLACK,fillColor:x.off?WK:WHITE}}))]];
 const lt=tint(tc,.12),body=[];
 body.push([{content:"Turno",styles:{halign:"left",fillColor:lt,textColor:[80,80,80]}},...days.map(x=>{const sh=shift(t,year,m,x.d);return{content:sh,styles:{fillColor:rgb(SC[sh][0]),textColor:rgb(SC[sh][1]),fontStyle:"bold"}}})]);
-if(E.length){E.forEach(e=>body.push([{content:e.name+"  "+e.mat+(e.oss?"  OSS":""),styles:{halign:"left",fillColor:lt}},...days.map(x=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid);
-return r?{content:ab(r)||"?",rej:r.stato==="rifiutata",styles:{fillColor:r.stato==="approvata"?[22,163,74]:(r.ex&&(r.stato||"in_attesa")==="in_attesa"?[220,38,38]:(isCb(r)&&r.stato!=="rifiutata"?[13,148,136]:tc)),textColor:WHITE,fontStyle:"bold"}}:{content:"",styles:{fillColor:x.off?WK:WHITE}}})]))}
+if(E.length){E.forEach(e=>body.push([{content:e.name+"  "+e.mat+(e.oss?"  OSS":""),styles:{halign:"left",fillColor:lt}},...days.map(x=>{const r=reqs.find(q=>q.date===x.k&&q.uid===e.uid),see=e.uid===user.uid||user.adm||user.coord,CEL=[125,211,252],DK=[12,74,110],vuoto={content:"",styles:{fillColor:x.off?WK:WHITE}};
+if(r&&isCb(r)&&!see)return vuoto;
+const q=!r&&see?cm[e.uid+"|"+x.k]:null;if(q)return{content:"C",styles:{fillColor:CEL,textColor:DK,fontStyle:"bold"}};
+if(!r)return vuoto;const cb=isCb(r)&&r.stato!=="rifiutata";
+return{content:ab(r)||"?",rej:r.stato==="rifiutata",styles:{fillColor:cb?CEL:(r.stato==="approvata"?[22,163,74]:(r.ex&&(r.stato||"in_attesa")==="in_attesa"?[220,38,38]:tc)),textColor:cb?DK:WHITE,fontStyle:"bold"}}})]))}
 else body.push([{content:"Nessun dipendente registrato",colSpan:nd+1,styles:{halign:"left",fillColor:lt,textColor:[80,80,80]}}]);
 [["Infermieri",false],["OSS",true]].forEach(([lb,o])=>body.push([{content:lb+" (max "+LIM(o)+")",styles:{halign:"left",fontStyle:"bold",fillColor:lt}},...days.map(x=>{const n=reqs.filter(r=>r.date===x.k&&r.team===t&&!!r.oss===o&&!isCb(r)).length;
 return{content:n?String(n):"",styles:{fillColor:x.off?WK:WHITE,textColor:n>=LIM(o)?RED:BLACK,fontStyle:n>=LIM(o)?"bold":"normal"}}})]));
@@ -406,7 +435,7 @@ else if(a==="apvall"){const ids=pendIds(v);if(!ids.length){toast("Nessuna richie
 else if(a==="yr"){year+=+v;await load()}
 else if(a==="day"){sel=v;render()}
 else if(a==="add"){let r=$("#rs").value,cb=null;if(r==="Altro motivo"){const x=$("#rx").value.trim();if(x.length<3){toast("Specifica il motivo (causale)");return}r="Altro: "+x}
-if(r==="Cambio turno"){cb=cbCalc();if(!cb){toast("Scegli il collega e una data con un turno di lavoro");return}if(cb.data===v){toast("La data del cambio deve essere diversa dal giorno richiesto");return}}
+if(r==="Cambio turno"){cb=cbCalc();if(!cb){toast("Controlla collega e data del cambio");return}}
 addReq(v,r,cb)}
 else if(a==="del"){await sb.from("requests").delete().eq("id",v);await load()}
 else if(a==="prof"){prof=true;render()}
